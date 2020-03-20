@@ -1,29 +1,19 @@
-﻿using Harmony12;
+﻿using HarmonyLib;
 using Kingmaker;
-using Kingmaker.Blueprints.Classes;
-using Kingmaker.Blueprints.Classes.Spells;
-using Kingmaker.Blueprints.Root;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.GameModes;
 using Kingmaker.UnitLogic;
 using Kingmaker.UnitLogic.Abilities;
-using Kingmaker.UnitLogic.Abilities.Blueprints;
 using Kingmaker.UnitLogic.Abilities.Components;
-using Kingmaker.UnitLogic.Commands;
-using Kingmaker.UnitLogic.Parts;
 using Kingmaker.Utility;
-using Kingmaker.View;
-using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using UnityEngine;
 using UnityModManagerNet;
 using Kingmaker.Blueprints;
+using Kingmaker.UnitLogic.Abilities.Blueprints;
 
 namespace KingmakerBuffBot
 {
@@ -91,7 +81,7 @@ namespace KingmakerBuffBot
         }
         static bool Load(UnityModManager.ModEntry modEntry)
         {
-            var harmony = HarmonyInstance.Create(modEntry.Info.Id);
+            var harmony = new Harmony(modEntry.Info.Id);
             harmony.PatchAll(Assembly.GetExecutingAssembly());
             settings = Settings.Load<Settings>(modEntry);
             modEntry.OnToggle = OnToggle;
@@ -406,13 +396,16 @@ namespace KingmakerBuffBot
             foreach (var ua in unitAssignments)
             {
                 UnitDescriptor uR = ua.Unit.Descriptor;
+
                 foreach (var spellbook in uR.Spellbooks)
                 {
                     foreach (var sp in spellbook.GetAllKnownSpells().Where(o => o.GetAvailableForCastCount() > 0).ToList())
                     {
-                        if (sp.Blueprint.HasVariants)
+                        AbilityVariants component = sp.Blueprint.GetComponent<AbilityVariants>();
+                        ReferenceArrayProxy<BlueprintAbility, BlueprintAbilityReference>? referenceArrayProxy = (component != null) ? new ReferenceArrayProxy<BlueprintAbility, BlueprintAbilityReference>?(component.Variants) : null;
+                        if (referenceArrayProxy != null)
                         {
-                            foreach (var variant in sp.Blueprint.Variants)
+                            foreach (var variant in referenceArrayProxy)
                             {
                                 var variantAbility = new AbilityData(variant, uR, spellbook.Blueprint);
                                 foreach (var sa in slotAssignmentWithSpellProfiles.Where(o => (o.SpellProfile.Spells.FirstOrDefault(p => p.Name == variant.Name)) != null).ToList())
@@ -429,7 +422,7 @@ namespace KingmakerBuffBot
                             }
                         }
                     }
-                    for (int i = 0; i < 10; i++)
+                    for (int i = 0; i < 11; i++)
                     {
                         foreach (var sp in spellbook.GetCustomSpells(i).Where(o => o.GetAvailableForCastCount() > 0).ToList())
                         {
@@ -465,14 +458,14 @@ namespace KingmakerBuffBot
                 };
                 unitAssignmentsTemp.Add(uA);
                 i++;
-                if (uD.Pet != null)
+                if (uD.Unit.Pets.Count > 0)
                 {
-                    if (uD.Pet.IsInState)
+                    foreach (var uP in uD.Unit.Pets)
                     {
                         UnitAssignment uAPet = new UnitAssignment
                         {
                             SlotIndex = i,
-                            Unit = uD.Pet
+                            Unit = uP
                         };
                         unitAssignmentsTemp.Add(uAPet);
                         i++;
@@ -488,7 +481,7 @@ namespace KingmakerBuffBot
 
             if (settings.slotAssignments.Count == 0)
             {
-                for (int i = 1; i < 13; i++)
+                for (int i = 1; i < 14; i++)
                 {
                     SlotAssignment sa = new SlotAssignment();
                     SpellProfile sp = new SpellProfile();
@@ -691,9 +684,11 @@ namespace KingmakerBuffBot
                 {
                     if (settings.readyForProfileSpells.FirstOrDefault(o => o.Name == aks.Name) == null)
                     {
-                        if (aks.Blueprint.HasVariants)
+                        AbilityVariants component = aks.Blueprint.GetComponent<AbilityVariants>();
+                        ReferenceArrayProxy<BlueprintAbility, BlueprintAbilityReference>? referenceArrayProxy = (component != null) ? new ReferenceArrayProxy<BlueprintAbility, BlueprintAbilityReference>?(component.Variants) : null;
+                        if (referenceArrayProxy != null)
                         {
-                            foreach (var v in aks.Blueprint.Variants)
+                            foreach (var v in referenceArrayProxy)
                             {
                                 if (settings.readyForProfileSpells.FirstOrDefault(o => o.Name == v.Name) == null)
                                 {
@@ -795,7 +790,7 @@ namespace KingmakerBuffBot
                 using (var horizontalScope = new GUILayout.HorizontalScope("box"))
                 {
                     Helpers.Label("Spell Level:");
-                    for (var i = 0; i < 10; i++)
+                    for (var i = 0; i < 11; i++)
                     {
                         if (menu == 2)
                         {
