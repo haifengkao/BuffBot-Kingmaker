@@ -15,7 +15,7 @@ using UnityModManagerNet;
 using Kingmaker.Blueprints;
 using Kingmaker.UnitLogic.Abilities.Blueprints;
 
-namespace KingmakerBuffBot
+namespace WrathBuffBot
 {
 
     public class Settings : UnityModManager.ModSettings
@@ -26,6 +26,7 @@ namespace KingmakerBuffBot
         public bool spendSpellSlot = true;
         public bool spendMaterialComponent = true;
         public bool checkGameState = true;
+        public bool useHighestCl = true;
 
         public override void Save(UnityModManager.ModEntry modEntry)
         {
@@ -34,6 +35,7 @@ namespace KingmakerBuffBot
     }
     public class SlotAssignment
     {
+        public bool CanCast = true;
         public int SlotIndex { get; set; }
         public string SpellProfileId { get; set; }
         public int CastingOrder { get; set; }
@@ -49,6 +51,7 @@ namespace KingmakerBuffBot
         public string Name { get; set; }
         public int SpellLevel { get; set; }
         public List<Metamagic> Metamagics { get; set; }
+        public string ParentName { get; set; }
     }
     static class Main
     {
@@ -64,6 +67,7 @@ namespace KingmakerBuffBot
         public static List<SlotAssignmentWithSpellProfile> slotAssignmentWithSpellProfiles = new List<SlotAssignmentWithSpellProfile>();
         public static List<UnitAssignmentWithSlot> unitAssignmentWithSlots = new List<UnitAssignmentWithSlot>();
         public static List<AbilityData> spellsAvailable = new List<AbilityData>();
+        public static Color defaultColor = new Color();
         public class SlotAssignmentWithSpellProfile
         {
             public SpellProfile SpellProfile { get; set; }
@@ -87,6 +91,7 @@ namespace KingmakerBuffBot
             modEntry.OnToggle = OnToggle;
             modEntry.OnGUI = OnGUI;
             modEntry.OnSaveGUI = OnSaveGUI;
+            defaultColor = GUI.backgroundColor;
             return true;
         }
 
@@ -227,7 +232,9 @@ namespace KingmakerBuffBot
 
         private static void Execute()
         {
-            if (GUILayout.Button("Execute"))
+            GUI.backgroundColor = Color.black;
+            GUI.contentColor = Color.green;
+            if (GUILayout.Button("Execute", GUILayout.Height(25)))
             {
                 //Refresh spell data and unit data. Gui will not show even when you press the button.
                 GUILayout.BeginArea(Rect.zero);
@@ -236,13 +243,21 @@ namespace KingmakerBuffBot
                 ////
                 foreach (var u in unitAssignmentWithSlots.OrderBy(o => o.SlotAssignmentWithSpellProfile.SlotAssignment.CastingOrder).ToList())
                 {
-                    Helpers.Log("Casting Order: " + u.SlotAssignmentWithSpellProfile.SlotAssignment.CastingOrder.ToString());
+                    
                     foreach (var s in u.SlotAssignmentWithSpellProfile.SpellProfile.Spells.OrderBy(p => p.SpellLevel).ThenByDescending(o => o.Metamagics.Count).ToList())
                     {
                         GetCastableSpellsBySpellProfiles();
                         //First, get all spells that have the same name as the one the profile needs.
-                        List<AbilityData> spells = spellsAvailable.Where(o => o.Name == s.Name).OrderBy(p => p.Spellbook.CasterLevel).ToList();
-                        //Second, get a list of spells that qualify for metamagics, if any apply
+                        List<AbilityData> spells;
+                        if (settings.useHighestCl)
+                        {
+                            spells = spellsAvailable.Where(o => o.Name == s.Name).OrderBy(p => p.Spellbook.CasterLevel).ToList();
+                        }
+                        else
+                        {
+                            spells = spellsAvailable.Where(o => o.Name == s.Name).ToList();
+                        }
+                        //Second, get a list of spells that qualify for metamagics, if any apply.
                         List<AbilityData> validSpells = new List<AbilityData>();
                         if (s.Metamagics.Count > 0)
                         {
@@ -279,7 +294,15 @@ namespace KingmakerBuffBot
                         {
                             validSpells = validSpells.Where(o => o.CanTarget(u.UnitAssignment.Unit)).ToList();
 
-                            AbilityData spellToCast = validSpells.ToList().OrderByDescending(o => o.Spellbook.CasterLevel).FirstOrDefault();
+                            AbilityData spellToCast;
+                            if (settings.useHighestCl)
+                            {
+                                spellToCast = validSpells.ToList().OrderByDescending(o => o.Spellbook.CasterLevel).FirstOrDefault();
+                            }
+                            else
+                            {
+                                spellToCast = validSpells.ToList().FirstOrDefault();
+                            }
                             if (spellToCast != null)
                             {
                                 AbilityData spellModified = new AbilityData(spellToCast.Blueprint,spellToCast.Caster,spellToCast.Spellbook.Blueprint);
@@ -300,7 +323,17 @@ namespace KingmakerBuffBot
                                 spellToCast.Cast(abilityExecutionContext);
                                 if (settings.spendSpellSlot)
                                 {
-                                    spellToCast.SpendFromSpellbook();
+                                    var profileSpell = settings.readyForProfileSpells.Where(z => z.Name == spellToCast.Name).FirstOrDefault();
+                                    if(profileSpell.ParentName != null)
+                                    {
+                                        var spellsInSpellbook = spellToCast.Spellbook.GetAllKnownSpells().Where(o => o.GetAvailableForCastCount() > 0).ToList();
+                                        spellsInSpellbook.Where(v => v.Name == profileSpell.ParentName).FirstOrDefault().SpendFromSpellbook();
+                                    }
+                                    else
+                                    {
+                                        spellToCast.SpendFromSpellbook(); // Spend from spellbook works, but trying SpellSlot.Spend
+                                    }
+
                                 }
                                 if (settings.spendMaterialComponent)
                                 {
@@ -310,6 +343,26 @@ namespace KingmakerBuffBot
                         }
                     }
                 }
+            }
+            GUI.backgroundColor = defaultColor;
+            GUI.contentColor = Color.white;
+            if (settings.useHighestCl)
+            {
+                GUI.backgroundColor = Color.yellow;
+                if (GUILayout.Button("Cast spells in order of highest caster level first.", GUILayout.Height(15)))
+                {
+                    settings.useHighestCl = false;
+                }
+                GUI.backgroundColor = defaultColor;
+            }
+            else
+            {
+                GUI.backgroundColor = Color.blue;
+                if (GUILayout.Button("Cast spells by party order.", GUILayout.Height(15)))
+                {
+                    settings.useHighestCl = true;
+                }
+                GUI.backgroundColor = defaultColor;
             }
         }
 
@@ -397,38 +450,51 @@ namespace KingmakerBuffBot
             {
                 UnitDescriptor uR = ua.Unit.Descriptor;
 
-                foreach (var spellbook in uR.Spellbooks)
+                var unitAssignments = Main.unitAssignments;
+                var slotAssignments = settings.slotAssignments;
+
+                var slotAssignment = new SlotAssignment();
+                var unitAssignment = new UnitAssignment();
+
+                unitAssignment = unitAssignments.Where(f => f.Unit == uR.Unit).FirstOrDefault();
+
+                slotAssignment = slotAssignments.Where(q => q.SlotIndex == unitAssignment.SlotIndex).FirstOrDefault();
+
+                if (slotAssignment.CanCast)
                 {
-                    foreach (var sp in spellbook.GetAllKnownSpells().Where(o => o.GetAvailableForCastCount() > 0).ToList())
+                    foreach (var spellbook in uR.Spellbooks)
                     {
-                        AbilityVariants component = sp.Blueprint.GetComponent<AbilityVariants>();
-                        ReferenceArrayProxy<BlueprintAbility, BlueprintAbilityReference>? referenceArrayProxy = (component != null) ? new ReferenceArrayProxy<BlueprintAbility, BlueprintAbilityReference>?(component.Variants) : null;
-                        if (referenceArrayProxy != null)
+                        foreach (var sp in spellbook.GetAllKnownSpells().Where(o => o.GetAvailableForCastCount() > 0).ToList())
                         {
-                            foreach (var variant in referenceArrayProxy)
+                            AbilityVariants component = sp.Blueprint.GetComponent<AbilityVariants>();
+                            ReferenceArrayProxy<BlueprintAbility, BlueprintAbilityReference>? referenceArrayProxy = (component != null) ? new ReferenceArrayProxy<BlueprintAbility, BlueprintAbilityReference>?(component.Variants) : null;
+                            if (referenceArrayProxy != null)
                             {
-                                var variantAbility = new AbilityData(variant, uR, spellbook.Blueprint);
-                                foreach (var sa in slotAssignmentWithSpellProfiles.Where(o => (o.SpellProfile.Spells.FirstOrDefault(p => p.Name == variant.Name)) != null).ToList())
+                                foreach (var variant in referenceArrayProxy)
                                 {
-                                    abilitiesBySpellProfile.Add(variantAbility);
+                                    var variantAbility = new AbilityData(variant, uR, spellbook.Blueprint);
+                                    foreach (var sa in slotAssignmentWithSpellProfiles.Where(o => (o.SpellProfile.Spells.FirstOrDefault(p => p.Name == variant.Name)) != null).ToList())
+                                    {
+                                        abilitiesBySpellProfile.Add(variantAbility);
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                foreach (var sa in slotAssignmentWithSpellProfiles.Where(o => (o.SpellProfile.Spells.FirstOrDefault(p => p.Name == sp.Name)) != null).ToList())
+                                {
+                                    abilitiesBySpellProfile.Add(sp);
                                 }
                             }
                         }
-                        else
+                        for (int i = 0; i < 11; i++)
                         {
-                            foreach (var sa in slotAssignmentWithSpellProfiles.Where(o => (o.SpellProfile.Spells.FirstOrDefault(p => p.Name == sp.Name)) != null).ToList())
+                            foreach (var sp in spellbook.GetCustomSpells(i).Where(o => o.GetAvailableForCastCount() > 0).ToList())
                             {
-                                abilitiesBySpellProfile.Add(sp);
-                            }
-                        }
-                    }
-                    for (int i = 0; i < 11; i++)
-                    {
-                        foreach (var sp in spellbook.GetCustomSpells(i).Where(o => o.GetAvailableForCastCount() > 0).ToList())
-                        {
-                            foreach (var sa in slotAssignmentWithSpellProfiles.Where(o => (o.SpellProfile.Spells.FirstOrDefault(p => p.Name == sp.Name)) != null).ToList())
-                            {
-                                abilitiesBySpellProfile.Add(sp);
+                                foreach (var sa in slotAssignmentWithSpellProfiles.Where(o => (o.SpellProfile.Spells.FirstOrDefault(p => p.Name == sp.Name)) != null).ToList())
+                                {
+                                    abilitiesBySpellProfile.Add(sp);
+                                }
                             }
                         }
                     }
@@ -502,9 +568,27 @@ namespace KingmakerBuffBot
                         {
                             characterInSlot = unitAssignments.FirstOrDefault(o => o.SlotIndex == sa.SlotIndex).Unit.CharacterName;
                         }
+                        if (sa.CanCast)
+                        {
+                            GUI.backgroundColor = Color.green;
+                            if (GUILayout.Button("Can Cast", GUILayout.Width(85)))
+                            {
+                                sa.CanCast = false;
+                            }
+                            GUI.backgroundColor = defaultColor;
+                        }
+                        else
+                        {
+                            GUI.backgroundColor = Color.red;
+                            if (GUILayout.Button("Cannot Cast", GUILayout.Width(85)))
+                            {
+                                sa.CanCast = true;
+                            }
+                            GUI.backgroundColor = defaultColor;
+                        }
                         GUILayout.Label("Slot " + sa.SlotIndex + ": " + characterInSlot, GUILayout.Width(150));
-                        GUILayout.Label("Casting Order: " + sa.CastingOrder + " ", GUILayout.Width(150));
-                        sa.CastingOrder = Mathf.RoundToInt(GUILayout.HorizontalSlider(sa.CastingOrder, 1.0f, 12.0f, GUILayout.Width(200)));
+                        GUILayout.Label("Priority: " + sa.CastingOrder + " ", GUILayout.Width(100));
+                        sa.CastingOrder = Mathf.RoundToInt(GUILayout.HorizontalSlider(sa.CastingOrder, 1.0f, 13.0f, GUILayout.Width(200)));
                         if (settings.slotAssignments.FirstOrDefault(o => (o.CastingOrder == sa.CastingOrder) && (o.SlotIndex != sa.SlotIndex)) != null)
                         {
                             List<int> currentNum = new List<int>();
@@ -512,13 +596,13 @@ namespace KingmakerBuffBot
                             {
                                 currentNum.Add(s.CastingOrder);
                             }
-                            var result = Enumerable.Range(1, 12).Except(currentNum).ToList();
+                            var result = Enumerable.Range(1, 13).Except(currentNum).ToList();
                             if (result.Count > 0)
                             {
                                 settings.slotAssignments.FirstOrDefault(o => (o.CastingOrder == sa.CastingOrder) && (o.SlotIndex != sa.SlotIndex)).CastingOrder = result.FirstOrDefault();
                             }
                         }
-                        GUILayout.Label("Current Profile: ", GUILayout.Width(75));
+                        GUILayout.Label("Profile: ", GUILayout.Width(40));
                         if (settings.spellProfiles.Count == 0)
                         {
                             GUILayout.Label("No profiles!");
@@ -531,9 +615,9 @@ namespace KingmakerBuffBot
                                 spIndex = settings.spellProfiles.FindIndex(o => o.ProfileID == sa.SpellProfileId);
                             }
                             float f = settings.spellProfiles.Count - 1;
-                            spIndex = Mathf.RoundToInt(GUILayout.HorizontalSlider(spIndex, 0.0f, f, GUILayout.Width(200)));
+                            spIndex = Mathf.RoundToInt(GUILayout.HorizontalSlider(spIndex, 0.0f, f, GUILayout.Width(150)));
                             sa.SpellProfileId = settings.spellProfiles.ElementAtOrDefault(spIndex).ProfileID;
-                            GUILayout.Label(settings.spellProfiles.FirstOrDefault(o => o.ProfileID == sa.SpellProfileId).ProfileName);
+                            GUILayout.Label(settings.spellProfiles.FirstOrDefault(o => o.ProfileID == sa.SpellProfileId).ProfileName,GUILayout.Width(150));
                         }
                     }
                 }
@@ -586,18 +670,22 @@ namespace KingmakerBuffBot
                                         }
                                         if (!s.Metamagics.Contains(m))
                                         {
-                                            if (GUILayout.Button("+", GUILayout.Width(25)))
+                                            GUI.backgroundColor = Color.red;
+                                            if (GUILayout.Button("", GUILayout.Width(25)))
                                             {
                                                 s.Metamagics.Add(m);
                                             }
+                                            GUI.backgroundColor = defaultColor;
                                             GUILayout.Label(Enum.GetName(typeof(Metamagic), m), GUILayout.Width(75));
                                         }
                                         else
                                         {
-                                            if (GUILayout.Button("-", GUILayout.Width(25)))
+                                            GUI.backgroundColor = Color.green;
+                                            if (GUILayout.Button("", GUILayout.Width(25)))
                                             {
                                                 s.Metamagics.Remove(m);
                                             }
+                                            GUI.backgroundColor = defaultColor;
                                             GUILayout.Label(Enum.GetName(typeof(Metamagic), m), GUILayout.Width(75));
                                         }
                                     }
@@ -698,7 +786,8 @@ namespace KingmakerBuffBot
                                         {
                                             Name = v.Name,
                                             SpellLevel = aks.SpellLevel,
-                                            Metamagics = new List<Metamagic>()
+                                            Metamagics = new List<Metamagic>(),
+                                            ParentName = aks.Name
                                         };
                                         settings.readyForProfileSpells.Add(rfps);
                                     }
@@ -713,7 +802,8 @@ namespace KingmakerBuffBot
                                 {
                                     Name = aks.Name,
                                     SpellLevel = aks.SpellLevel,
-                                    Metamagics = new List<Metamagic>()
+                                    Metamagics = new List<Metamagic>(),
+                                    ParentName = null
                                 };
                                 settings.readyForProfileSpells.Add(rfps);
                             }
@@ -753,17 +843,21 @@ namespace KingmakerBuffBot
                                     {
                                         if (sp.Spells.FirstOrDefault(o => o.Name == rfps.Name) != null)
                                         {
-                                            if (GUILayout.Button("-", GUILayout.Width(25)))
+                                            GUI.backgroundColor = Color.green;
+                                            if (GUILayout.Button("", GUILayout.Width(25)))
                                             {
                                                 sp.Spells.Remove(sp.Spells.FirstOrDefault(o => o.Name == rfps.Name));
                                             }
+                                            GUI.backgroundColor = defaultColor;
                                         }
                                         else
                                         {
-                                            if (GUILayout.Button("+", GUILayout.Width(25)))
+                                            GUI.backgroundColor = Color.red;
+                                            if (GUILayout.Button("", GUILayout.Width(25)))
                                             {
                                                 sp.Spells.Add(rfps);
                                             }
+                                            GUI.backgroundColor = defaultColor;
                                         }
                                         GUILayout.Label(sp.ProfileName, GUILayout.Width(75));
                                     }
@@ -816,7 +910,7 @@ namespace KingmakerBuffBot
         {
             foreach (var ac in Game.Instance.Player.AllCharacters.ToList())
             {
-                foreach (var sb in ac.Descriptor.Spellbooks.ToList())
+                foreach (var sb in ac.Spellbooks.ToList())
                 {
                     foreach (var s in sb.GetAllKnownSpells().ToList())
                     {
