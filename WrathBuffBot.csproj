@@ -70,4 +70,7 @@
     <WCFMetadata Include="Connected Services\" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <PostBuildEvent>start XCOPY /Y /R "$(TargetPath)" "D:\SteamLibrary\steamapps\common\Pathfinder Second Adventure Demo\Mods\WrathBuffBot\WrathBuffBot.dll"</PostBuildEvent>
+  </PropertyGroup>
 </Project>

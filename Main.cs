@@ -17,16 +17,20 @@ using Kingmaker.UnitLogic.Abilities.Blueprints;
 
 namespace WrathBuffBot
 {
-
+#if DEBUG
+    [EnableReloading]
+#endif
     public class Settings : UnityModManager.ModSettings
     {
         public List<SpellProfile> spellProfiles = new List<SpellProfile>();
         public List<SpellInfo> readyForProfileSpells = new List<SpellInfo>();
+        public List<AbilityInfo> readyForProfileAbilities = new List<AbilityInfo>();
         public List<SlotAssignment> slotAssignments = new List<SlotAssignment>();
         public bool spendSpellSlot = true;
         public bool spendMaterialComponent = true;
         public bool checkGameState = true;
         public bool useHighestCl = true;
+        public int pageAmounts = 52;
 
         public override void Save(UnityModManager.ModEntry modEntry)
         {
@@ -45,12 +49,18 @@ namespace WrathBuffBot
         public string ProfileID { get; set; }
         public string ProfileName { get; set; }
         public List<SpellInfo> Spells { get; set; }
+        public List<AbilityInfo> Abilities { get; set; }
     }
     public class SpellInfo
     {
         public string Name { get; set; }
         public int SpellLevel { get; set; }
         public List<Metamagic> Metamagics { get; set; }
+        public string ParentName { get; set; }
+    }
+    public class AbilityInfo
+    {
+        public string Name { get; set; }
         public string ParentName { get; set; }
     }
     static class Main
@@ -60,20 +70,25 @@ namespace WrathBuffBot
         public static int maxSpellLevel = 10;
         public static bool enabled;
         public static HashSet<AbilityData> allKnownSpells = new HashSet<AbilityData>();
-        public static int allKnownSpellLevelMenu;
+        public static HashSet<AbilityData> allKnownAbilities = new HashSet<AbilityData>();
+        //public static int allKnownSpellLevelMenu;
         public static int readyForProfileSpellLevelMenu;
         public static string createProfileName = "Profile";
         public static string filterSpellName = "";
         public static string filterSpellPageName = "";
+        public static string filterAbilityName = "";
+        public static string filterAbilityPageName = "";
         public static string filterSpellNamePages = "";
-        public static int pageAmounts = 52;
         public static List<SpellInfo> readySpells = new List<SpellInfo>();
+        public static List<AbilityInfo> readyAbilities = new List<AbilityInfo>();
         public static SpellProfile managedProfile = new SpellProfile();
         public static List<UnitAssignment> unitAssignments = new List<UnitAssignment>();
         public static List<SlotAssignmentWithSpellProfile> slotAssignmentWithSpellProfiles = new List<SlotAssignmentWithSpellProfile>();
         public static List<UnitAssignmentWithSlot> unitAssignmentWithSlots = new List<UnitAssignmentWithSlot>();
         public static HashSet<AbilityData> spellsAvailable = new HashSet<AbilityData>();
+        public static HashSet<AbilityData> abilitiesAvailable = new HashSet<AbilityData>();
         public static Color defaultColor = new Color();
+        public static int defaultFontSize = GUI.skin.button.fontSize;
         public static string profileSelected = "";
         public class SlotAssignmentWithSpellProfile
         {
@@ -94,6 +109,9 @@ namespace WrathBuffBot
         {
             var harmony = new Harmony(modEntry.Info.Id);
             harmony.PatchAll(Assembly.GetExecutingAssembly());
+#if DEBUG
+            modEntry.OnUnload = Unload;
+#endif
             settings = Settings.Load<Settings>(modEntry);
             modEntry.OnToggle = OnToggle;
             modEntry.OnGUI = OnGUI;
@@ -101,6 +119,14 @@ namespace WrathBuffBot
             defaultColor = GUI.backgroundColor;
             return true;
         }
+#if DEBUG
+        static bool Unload(UnityModManager.ModEntry modEntry)
+        {
+            var harmony = new Harmony(modEntry.Info.Id);
+            harmony.UnpatchAll();
+            return true;
+        }
+#endif
 
         public static void OnSaveGUI(UnityModManager.ModEntry modEntry)
         {
@@ -157,11 +183,19 @@ namespace WrathBuffBot
                     {
                         PopulateAllKnownSpells();
                         AddKnownSpells();
+                        profileSelected = "";
                         menu = 2;
+                    }
+                    if (GUILayout.Button("Add Items/Abilities To Profile"))
+                    {
+                        PopulateAllAbilities();
+                        AddKnownAbilities();
+                        profileSelected = "";
+                        menu = 3;
                     }
                     if (GUILayout.Button("Configuration"))
                     {
-                        menu = 3;
+                        menu = 4;
                     }
                 }
                 switch (menu)
@@ -174,6 +208,10 @@ namespace WrathBuffBot
                         ShowAllSpells();
                         break;
                     case 3:
+                        ShowProfiles();
+                        ShowAllAbilities();
+                        break;
+                    case 4:
                         ConfigurationManager();
                         break;
                     default:
@@ -188,6 +226,17 @@ namespace WrathBuffBot
         {
             using (var verticalscope = new GUILayout.VerticalScope("box"))
             {
+                using (var horizontalscopeSlider = new GUILayout.HorizontalScope())
+                {
+                    GUILayout.Label("Amount of Abilities Per Page: ", GUILayout.Width(200));
+                    settings.pageAmounts = (int)Math.Round(settings.pageAmounts / 4.0) * 4;
+                    settings.pageAmounts = (int)GUILayout.HorizontalSlider(settings.pageAmounts, 40, 1000);
+                    if (settings.pageAmounts < 42)
+                    {
+                        settings.pageAmounts = 42;
+                    }
+                    GUILayout.Label(settings.pageAmounts.ToString(), GUILayout.Width(100));
+                }
                 if (settings.spendSpellSlot)
                 {
                     if (GUILayout.Button("Casting spells spend spell slots."))
@@ -327,7 +376,7 @@ namespace WrathBuffBot
                                 {
                                     var spellsInSpellbook = spellToCast.Spellbook.GetAllKnownSpells().Where(v => v.Name == profileSpell.ParentName).Where(o => o.GetAvailableForCastCount() > 0);
                                     var spellbookList = new List<AbilityData>();
-                                    foreach(var spell in spellsInSpellbook)
+                                    foreach (var spell in spellsInSpellbook)
                                     {
                                         spellbookList.Add(spell);
                                     }
@@ -383,6 +432,80 @@ namespace WrathBuffBot
 
         }
 
+        private static void ExecutionLogicAbilities()
+        {
+            foreach (var u in unitAssignmentWithSlots.OrderBy(o => o.SlotAssignmentWithSpellProfile.SlotAssignment.CastingOrder))
+            {
+                foreach (var s in u.SlotAssignmentWithSpellProfile.SpellProfile.Abilities)
+                {
+                    // Helpers.Log($"Start");
+                    GetActivatableAbilitiesBySpellProfiles();
+                    //  Helpers.Log($"Activatable Abilities Count: " + abilitiesAvailable.Count.ToString());
+
+                    //First, get all spells that have the same name as the one the profile needs.
+                    List<AbilityData> abilities;
+                    if (settings.useHighestCl)
+                    {
+                        abilities = abilitiesAvailable.Where(o => o.Name == s.Name).OrderBy(p => p.Spellbook.CasterLevel).ToList();
+                    }
+                    else
+                    {
+                        abilities = abilitiesAvailable.Where(o => o.Name == s.Name).ToList();
+                    }
+                    //Second, get a list of spells that qualify for metamagics, if any apply.
+                    List<AbilityData> validAbilities = new List<AbilityData>();
+                    validAbilities = abilities;
+                    //  Helpers.Log($"Valid Abilities Count: " + validAbilities.Count.ToString());
+                    if (validAbilities.Count > 0)
+                    {
+                        validAbilities = validAbilities.Where(o => o.CanTarget(u.UnitAssignment.Unit)).ToList();
+                        //     Helpers.Log($"Got abilities");
+                        AbilityData abilityToCast;
+                        if (settings.useHighestCl)
+                        {
+                            abilityToCast = validAbilities.OrderByDescending(o => o.Spellbook.CasterLevel).FirstOrDefault();
+                        }
+                        else
+                        {
+                            abilityToCast = validAbilities.FirstOrDefault();
+                        }
+                        //     Helpers.Log($"Abilities Sorted");
+                        if (abilityToCast != null)
+                        {
+                            AbilityData abilityModified = new AbilityData(abilityToCast.Blueprint, abilityToCast.Caster);
+                            //     Helpers.Log($"new abilitydata created");
+                            AbilityEffectStickyTouch component2 = abilityModified.Blueprint.GetComponent<AbilityEffectStickyTouch>();
+                            if ((bool)component2)
+                            {
+                                abilityModified = new AbilityData(component2.TouchDeliveryAbility, abilityModified.Caster);
+                            }
+                            abilityModified.Blueprint.SpellResistance = false;
+                            //       Helpers.Log($"spell Resistance Modified");
+                            TargetWrapper targetWrapper = new TargetWrapper(u.UnitAssignment.Unit);
+                            AbilityParams abilityParams = abilityModified.CalculateParams();
+                            AbilityExecutionContext abilityExecutionContext = new AbilityExecutionContext(abilityToCast, abilityParams, targetWrapper);
+                            //       Helpers.Log($"ability execution context");
+                            if ((bool)component2)
+                            {
+                                abilityExecutionContext = new AbilityExecutionContext(abilityModified, abilityParams, Vector3.zero);
+                                Kingmaker.Controllers.AbilityExecutionProcess.ApplyEffectImmediate(abilityExecutionContext, u.UnitAssignment.Unit);
+                            }
+                            //        Helpers.Log($"Ability Modified");
+                            //Helpers.Log(abilityExecutionContext.Caster.CharacterName + " | " + abilityExecutionContext.MainTarget.Unit.CharacterName + " | " + abilityExecutionContext.Ability.Name);
+                            abilityToCast.CalculateParams();
+                            if (abilityToCast.IsAvailableForCast)
+                            {
+                                abilityToCast.Spend();
+                                abilityToCast.Cast(abilityExecutionContext);
+                            }
+                            //Helpers.Log($"Ability Casted");
+                        }
+                    }
+                }
+            }
+
+        }
+
         private static void Execute()
         {
             GUI.backgroundColor = Color.black;
@@ -395,6 +518,7 @@ namespace WrathBuffBot
                 GUILayout.EndArea();
                 ////
                 ExecutionLogic();
+                ExecutionLogicAbilities();
             }
             GUI.backgroundColor = defaultColor;
             GUI.contentColor = Color.white;
@@ -558,6 +682,31 @@ namespace WrathBuffBot
                 }
             }
             spellsAvailable = abilitiesBySpellProfile;
+        }
+
+        private static void GetActivatableAbilitiesBySpellProfiles()
+        {
+            HashSet<AbilityData> abilitiesBySpellProfile = new HashSet<AbilityData>();
+            foreach (var ua in unitAssignments)
+            {
+                UnitDescriptor uR = ua.Unit.Descriptor;
+
+                var unitAssignments = Main.unitAssignments;
+                var slotAssignments = settings.slotAssignments;
+
+                var slotAssignment = new SlotAssignment();
+                var unitAssignment = new UnitAssignment();
+                unitAssignment = unitAssignments.Where(f => f.Unit == uR.Unit).FirstOrDefault();
+                slotAssignment = slotAssignments.Where(q => q.SlotIndex == unitAssignment.SlotIndex).FirstOrDefault();
+                if (slotAssignment.CanCast)
+                {
+                    foreach (var a in uR.Abilities)
+                    {
+                        abilitiesBySpellProfile.Add(a.Data);
+                    }
+                }
+            }
+            abilitiesAvailable = abilitiesBySpellProfile;
         }
 
 
@@ -801,7 +950,7 @@ namespace WrathBuffBot
                             if (GUILayout.Button("Filter", GUILayout.Width(60)))
                             {
                                 readySpells = settings.readyForProfileSpells.Where(r => r.Name.ToUpper().StartsWith(filterSpellName.ToUpper())).OrderBy(v => v.Name)
-                                .Skip(0).Take(pageAmounts).ToList();
+                                .Skip(0).Take(settings.pageAmounts).ToList();
                                 filterSpellPageName = filterSpellName;
                             }
                         }
@@ -809,15 +958,15 @@ namespace WrathBuffBot
                         {
                             double pageCount = settings.readyForProfileSpells.Where(r => r.Name.ToUpper().StartsWith(filterSpellPageName.ToUpper())).OrderBy(v => v.Name).Count();
 
-                            pageCount = pageCount / pageAmounts;
+                            pageCount = pageCount / settings.pageAmounts;
                             pageCount = Math.Ceiling(pageCount);
                             for (var i = 0; i <= pageCount - 1; i++)
                             {
-                                if (GUILayout.Button("Page " + (i + 1).ToString(), GUILayout.Width(60)))
+                                if (GUILayout.Button("Page " + (i + 1).ToString(), GUILayout.Width(70)))
                                 {
                                     readySpells = settings.readyForProfileSpells.OrderBy(v => v.Name)
                                     .Where(r => r.Name.ToUpper().StartsWith(filterSpellPageName.ToUpper()))
-                                    .Skip(i * pageAmounts).Take(pageAmounts).ToList();
+                                    .Skip(i * settings.pageAmounts).Take(settings.pageAmounts).ToList();
                                 }
                             }
                         }
@@ -830,23 +979,33 @@ namespace WrathBuffBot
                                 foreach (var sp in readySpells.OrderBy(o => o.Name).Skip(i).Take(amountPerRow))
                                 {
                                     var profile = settings.spellProfiles.Where(c => c.ProfileID == profileSelected).FirstOrDefault();
-
+                                    var smallFontSize = 10;
                                     if (profile.Spells.Where(b => b.Name == sp.Name).FirstOrDefault() != null)
                                     {
                                         GUI.backgroundColor = Color.green;
-                                        if (GUILayout.Button("<b>" + sp.Name + "</b>", GUILayout.Width(220)))
+                                        if (sp.Name.Length > 25)
+                                        {
+                                            GUI.skin.button.fontSize = smallFontSize;
+                                        }
+                                        if (GUILayout.Button("<b>" + sp.Name + "</b>", GUILayout.Width(220), GUILayout.Height(25)))
                                         {
                                             profile.Spells.Remove(profile.Spells.Where(b => b.Name == sp.Name).FirstOrDefault());
                                         }
+                                        GUI.skin.button.fontSize = defaultFontSize;
                                         GUI.backgroundColor = defaultColor;
                                     }
                                     else
                                     {
                                         GUI.backgroundColor = Color.red;
-                                        if (GUILayout.Button(sp.Name, GUILayout.Width(220)))
+                                        if (sp.Name.Length > 25)
+                                        {
+                                            GUI.skin.button.fontSize = smallFontSize;
+                                        }
+                                        if (GUILayout.Button(sp.Name, GUILayout.Width(220), GUILayout.Height(25)))
                                         {
                                             profile.Spells.Add(sp);
                                         }
+                                        GUI.skin.button.fontSize = defaultFontSize;
                                         GUI.backgroundColor = defaultColor;
                                     }
                                 }
@@ -967,12 +1126,23 @@ namespace WrathBuffBot
                                 if (profileSelected != sp.ProfileID)
                                 {
                                     GUI.backgroundColor = Color.grey;
+
                                     if (GUILayout.Button(sp.ProfileName, GUILayout.Width(125)))
                                     {
-                                        profileSelected = sp.ProfileID;
-                                        readySpells = settings.readyForProfileSpells.Where(r => r.Name.ToUpper().StartsWith(filterSpellPageName.ToUpper()))
-                                            .OrderBy(v => v.Name)
-                                            .Skip(0).Take(pageAmounts).ToList();
+                                        if (menu == 2)
+                                        {
+                                            profileSelected = sp.ProfileID;
+                                            readySpells = settings.readyForProfileSpells.Where(r => r.Name.ToUpper().StartsWith(filterSpellPageName.ToUpper()))
+                                                .OrderBy(v => v.Name)
+                                                .Skip(0).Take(settings.pageAmounts).ToList();
+                                        }
+                                        else if (menu == 3)
+                                        {
+                                            profileSelected = sp.ProfileID;
+                                            readyAbilities = settings.readyForProfileAbilities.Where(r => r.Name.ToUpper().StartsWith(filterAbilityPageName.ToUpper()))
+                                                .OrderBy(v => v.Name)
+                                                .Skip(0).Take(settings.pageAmounts).ToList();
+                                        }
                                     }
                                     GUI.backgroundColor = defaultColor;
                                 }
@@ -985,12 +1155,6 @@ namespace WrathBuffBot
                                     }
                                     GUI.backgroundColor = defaultColor;
                                 }
-                            }
-                            for (var i2 = 0; i2 < (amountPerRow - settings.spellProfiles.Skip(i).Take(amountPerRow).Count()); i2++)
-                            {
-                                GUILayout.Label("", GUILayout.Width(25));
-                                GUILayout.Label("", GUILayout.Width(50));
-                                GUILayout.Label("", GUILayout.Width(25));
                             }
                         }
                     }
@@ -1033,9 +1197,138 @@ namespace WrathBuffBot
                     {
                         foreach (var s in sb.GetMemorizedSpells(i))
                         {
-                            if (s.SpellLevel != 0)
+                            if (s.Spell.SpellLevel != 0)
                             {
                                 allKnownSpells.Add(s.Spell);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        private static void PopulateAllAbilities()
+        {
+            foreach (var ac in Game.Instance.Player.AllCharacters)
+            {
+                foreach (var ability in ac.Abilities)
+                {
+                    allKnownAbilities.Add(ability.Data);
+                }
+            }
+        }
+        private static void AddKnownAbilities()
+        {
+            foreach (var aks in allKnownAbilities.OrderBy(h => h.Name))
+            {
+                if (settings.readyForProfileAbilities.FirstOrDefault(o => o.Name == aks.Name) == null)
+                {
+                    AbilityVariants component = aks.Blueprint.GetComponent<AbilityVariants>();
+                    ReferenceArrayProxy<BlueprintAbility, BlueprintAbilityReference>? referenceArrayProxy = (component != null) ? new ReferenceArrayProxy<BlueprintAbility, BlueprintAbilityReference>?(component.Variants) : null;
+                    if (referenceArrayProxy != null)
+                    {
+                        foreach (var v in referenceArrayProxy)
+                        {
+                            if (settings.readyForProfileAbilities.FirstOrDefault(o => o.Name == v.Name) == null)
+                            {
+                                AbilityInfo rfps = new AbilityInfo()
+                                {
+                                    Name = v.Name,
+                                    ParentName = aks.Name
+                                };
+                                settings.readyForProfileAbilities.Add(rfps);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        AbilityInfo rfps = new AbilityInfo()
+                        {
+                            Name = aks.Name,
+                            ParentName = aks.Name
+                        };
+                        settings.readyForProfileAbilities.Add(rfps);
+                    }
+                }
+            }
+        }
+        private static void ShowAllAbilities()
+        {
+            using (var horizontalScope = new GUILayout.HorizontalScope("box"))
+            {
+                using (var verticalScope = new GUILayout.VerticalScope())
+                {
+                    if (profileSelected != "")
+                    {
+                        using (var horizontalScopeTextFilter = new GUILayout.HorizontalScope("box"))
+                        {
+                            filterAbilityName = GUILayout.TextField(filterAbilityName, 250);
+                            if (GUILayout.Button("Filter", GUILayout.Width(60)))
+                            {
+                                readyAbilities = settings.readyForProfileAbilities.Where(r => r.Name.ToUpper().StartsWith(filterAbilityName.ToUpper())).OrderBy(v => v.Name)
+                                .Skip(0).Take(settings.pageAmounts).ToList();
+                                filterAbilityPageName = filterAbilityName;
+                            }
+                        }
+                        using (var horizontalScopeTextPages = new GUILayout.HorizontalScope("box"))
+                        {
+                            double pageCount = settings.readyForProfileAbilities.Where(r => r.Name.ToUpper().StartsWith(filterAbilityPageName.ToUpper())).OrderBy(v => v.Name).Count();
+
+                            pageCount = pageCount / settings.pageAmounts;
+                            pageCount = Math.Ceiling(pageCount);
+                            for (var i = 0; i <= pageCount - 1; i++)
+                            {
+                                if (GUILayout.Button("Page " + (i + 1).ToString(), GUILayout.Width(70)))
+                                {
+                                    readyAbilities = settings.readyForProfileAbilities.OrderBy(v => v.Name)
+                                    .Where(r => r.Name.ToUpper().StartsWith(filterAbilityPageName.ToUpper()))
+                                    .Skip(i * settings.pageAmounts).Take(settings.pageAmounts).ToList();
+                                }
+                            }
+                        }
+
+                        var amountPerRow = 4;
+                        for (var i = 0; i <= Math.Round(readyAbilities.Count / (double)amountPerRow) * amountPerRow; i += amountPerRow)
+                        {
+                            using (var horizontalScope2 = new GUILayout.HorizontalScope())
+                            {
+                                foreach (var sp in readyAbilities.OrderBy(o => o.Name).Skip(i).Take(amountPerRow))
+                                {
+                                    var profile = settings.spellProfiles.Where(c => c.ProfileID == profileSelected).FirstOrDefault();
+                                    var smallFontSize = 10;
+                                    if (profile.Abilities.Where(b => b.Name == sp.Name).FirstOrDefault() != null)
+                                    {
+                                        GUI.backgroundColor = Color.green;
+                                        if (sp.Name.Length > 25)
+                                        {
+                                            GUI.skin.button.fontSize = smallFontSize;
+                                            GUI.skin.button.wordWrap = true;
+                                        }
+                                        if (GUILayout.Button("<b>" + sp.Name + "</b>", GUILayout.Width(220), GUILayout.Height(25)))
+                                        {
+                                            profile.Abilities.Remove(profile.Abilities.Where(b => b.Name == sp.Name).FirstOrDefault());
+                                        }
+                                        GUI.skin.button.fontSize = defaultFontSize;
+                                        GUI.skin.button.wordWrap = false;
+                                        GUI.backgroundColor = defaultColor;
+                                    }
+                                    else
+                                    {
+                                        GUI.backgroundColor = Color.red;
+                                        if (sp.Name.Length > 25)
+                                        {
+                                            GUI.skin.button.fontSize = smallFontSize;
+                                            GUI.skin.button.wordWrap = true;
+                                        }
+                                        if (GUILayout.Button(sp.Name, GUILayout.Width(220), GUILayout.Height(25)))
+                                        {
+                                            profile.Abilities.Add(sp);
+                                        }
+                                        GUI.skin.button.fontSize = defaultFontSize;
+                                        GUI.skin.button.wordWrap = false;
+                                        GUI.backgroundColor = defaultColor;
+                                    }
+                                }
                             }
                         }
                     }
