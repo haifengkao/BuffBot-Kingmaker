@@ -10,9 +10,12 @@ namespace WrathBuffBot
 {
     class Helpers
     {
+        public static UnityModManager.ModEntry modInfo = null;
         public static void Log(string v)
         {
-            UnityModManager.Logger.Log(v);
+#if DEBUG
+            modInfo.Logger.Log(v + " - " + DateTime.Now.ToString());
+#endif
         }
         public static void Label(string label)
         {
