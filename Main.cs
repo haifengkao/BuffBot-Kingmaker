@@ -20,6 +20,11 @@ using Kingmaker.UnitLogic.Mechanics.Actions;
 using Kingmaker.ElementsSystem;
 using Kingmaker.UnitLogic.Mechanics;
 using Kingmaker.Designers.EventConditionActionSystem.Actions;
+using System.Collections;
+using JetBrains.Annotations;
+using Kingmaker.Blueprints.DirectSerialization;
+using Kingmaker.Blueprints.Validation;
+using System.Runtime.Serialization;
 
 namespace WrathBuffBot
 {
@@ -1003,10 +1008,10 @@ namespace WrathBuffBot
                         // abilitiesBySpellProfile.Add(a.Data);
                         
                         AbilityVariants component = a.Data.Blueprint.GetComponent<AbilityVariants>();
-                        ReferenceArrayProxy<BlueprintAbility, BlueprintAbilityReference>? referenceArrayProxy = (component != null) ? new ReferenceArrayProxy<BlueprintAbility, BlueprintAbilityReference>?(component.Variants) : null;
-                        if (referenceArrayProxy != null)
+
+                        if (component?.Variants != null)
                         {
-                            foreach (var variant in referenceArrayProxy)
+                            foreach (var variant in component.Variants)
                             {
                                 var variantAbility = new AbilityData(variant, uR);
                                 abilitiesBySpellProfile.Add(variantAbility);
@@ -1016,6 +1021,7 @@ namespace WrathBuffBot
                         {
                             abilitiesBySpellProfile.Add(a.Data);
                         }
+                       
                     }
                 }
             }
@@ -1540,10 +1546,10 @@ namespace WrathBuffBot
                                 else
                                 {
                                     AbilityVariants component = s.Blueprint.GetComponent<AbilityVariants>();
-                                    ReferenceArrayProxy<BlueprintAbility, BlueprintAbilityReference>? referenceArrayProxy = (component != null) ? new ReferenceArrayProxy<BlueprintAbility, BlueprintAbilityReference>?(component.Variants) : null;
-                                    if (referenceArrayProxy != null)
+
+                                    if (component?.Variants != null)
                                     {
-                                        foreach (var variant in referenceArrayProxy)
+                                        foreach (var variant in component.Variants)
                                         {
                                             if (BuffsInAbility(variant).Count > 0)
                                             {
@@ -1551,6 +1557,7 @@ namespace WrathBuffBot
                                             }
                                         }
                                     }
+                                   
                                 }
                             }
                             else
@@ -1574,10 +1581,11 @@ namespace WrathBuffBot
                                     else
                                     {
                                         AbilityVariants component = s.Spell.Blueprint.GetComponent<AbilityVariants>();
-                                        ReferenceArrayProxy<BlueprintAbility, BlueprintAbilityReference>? referenceArrayProxy = (component != null) ? new ReferenceArrayProxy<BlueprintAbility, BlueprintAbilityReference>?(component.Variants) : null;
-                                        if (referenceArrayProxy != null)
+                                        
+                                        
+                                        if (component?.Variants != null)
                                         {
-                                            foreach (var variant in referenceArrayProxy)
+                                            foreach (var variant in component.Variants)
                                             {
                                                 if (BuffsInAbility(variant).Count > 0)
                                                 {
@@ -1585,6 +1593,8 @@ namespace WrathBuffBot
                                                 }
                                             }
                                         }
+                                        
+                                      
                                     }
                                 }
                                 else
@@ -1615,10 +1625,11 @@ namespace WrathBuffBot
                             else
                             {
                                 AbilityVariants component = ability.Blueprint.GetComponent<AbilityVariants>();
-                                ReferenceArrayProxy<BlueprintAbility, BlueprintAbilityReference>? referenceArrayProxy = (component != null) ? new ReferenceArrayProxy<BlueprintAbility, BlueprintAbilityReference>?(component.Variants) : null;
-                                if (referenceArrayProxy != null)
+                                
+                                
+                                if (component?.Variants != null)
                                 {
-                                    foreach (var variant in referenceArrayProxy)
+                                    foreach (var variant in component.Variants)
                                     {
                                         if (BuffsInAbility(variant).Count > 0)
                                         {
@@ -1626,6 +1637,7 @@ namespace WrathBuffBot
                                         }
                                     }
                                 }
+                              
                             }
                         }
                         else
@@ -1645,10 +1657,10 @@ namespace WrathBuffBot
                     if (aks.Blueprint.HasVariants)
                     {
                         AbilityVariants component = aks.Blueprint.GetComponent<AbilityVariants>();
-                        ReferenceArrayProxy<BlueprintAbility, BlueprintAbilityReference>? referenceArrayProxy = (component != null) ? new ReferenceArrayProxy<BlueprintAbility, BlueprintAbilityReference>?(component.Variants) : null;
-                        if (referenceArrayProxy != null)
+                       
+                        if (component?.Variants != null)
                         {
-                            foreach (var variant in referenceArrayProxy)
+                            foreach (var variant in component.Variants)
                             {
                                 AbilityInfo rfps = new AbilityInfo()
                                 {
@@ -1658,6 +1670,8 @@ namespace WrathBuffBot
                                 settings.readyForProfileAbilities.Add(rfps);
                             }
                         }
+
+                       
                     }
                     else
                     {
