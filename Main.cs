@@ -1,30 +1,25 @@
 ﻿using Harmony12;
 using Kingmaker;
-using Kingmaker.Blueprints.Classes;
-using Kingmaker.Blueprints.Classes.Spells;
-using Kingmaker.Blueprints.Root;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.GameModes;
 using Kingmaker.UnitLogic;
 using Kingmaker.UnitLogic.Abilities;
 using Kingmaker.UnitLogic.Abilities.Blueprints;
 using Kingmaker.UnitLogic.Abilities.Components;
-using Kingmaker.UnitLogic.Commands;
-using Kingmaker.UnitLogic.Parts;
 using Kingmaker.Utility;
-using Kingmaker.View;
-using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using UnityEngine;
 using UnityModManagerNet;
 using Kingmaker.Blueprints;
-
+using Kingmaker.UnitLogic.Buffs.Blueprints;
+using Kingmaker.UnitLogic.Mechanics.Actions;
+using Kingmaker.ElementsSystem;
+using Kingmaker.UnitLogic.Mechanics;
+using Kingmaker.Designers.EventConditionActionSystem.Actions;
 
 namespace WrathBuffBot
 {
@@ -1006,6 +1001,7 @@ namespace WrathBuffBot
                     foreach (var a in uR.Abilities)
                     {
                         // abilitiesBySpellProfile.Add(a.Data);
+                        
                         AbilityVariants component = a.Data.Blueprint.GetComponent<AbilityVariants>();
                         ReferenceArrayProxy<BlueprintAbility, BlueprintAbilityReference>? referenceArrayProxy = (component != null) ? new ReferenceArrayProxy<BlueprintAbility, BlueprintAbilityReference>?(component.Variants) : null;
                         if (referenceArrayProxy != null)
