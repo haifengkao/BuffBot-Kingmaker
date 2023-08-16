@@ -74,7 +74,7 @@ namespace KingmakerBuffBot
         public string Name { get; set; }
         public string ParentName { get; set; }
     }
-    static class Main
+    public static class Main
     {
         public static Settings settings;
         public static int menu = 0;
@@ -507,7 +507,7 @@ namespace KingmakerBuffBot
             PopulateAllAbilities();
             AddKnownAbilities();
         }
-        private static void ExecutionsBoth()
+        public static void ExecutionsBoth()
         {
             ExecutionManager();
             if (settings.spellsFirst)
@@ -1025,7 +1025,7 @@ namespace KingmakerBuffBot
         }
 
 
-        private static void AttachProfilesManager()
+       public static void AttachProfilesManager()
         {
             FindPartyAssignment();
             AttachProfiles();
