@@ -944,7 +944,7 @@ namespace WrathBuffBot
 
         private static void GetCastableSpellsBySpellProfiles()
         {
-            List<AbilityData> abilitiesBySpellProfile = new List<AbilityData>();
+            HashSet<AbilityData> abilitiesBySpellProfile = new HashSet<AbilityData>();
             foreach (var ua in unitAssignments)
             {
                 UnitDescriptor uR = ua.Unit.Descriptor;
