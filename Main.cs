@@ -626,7 +626,7 @@ namespace KingmakerBuffBot
                             Helpers.Log("Valid Spell: " + spellToCast.Name);
                             //Helpers.Log("Line 614");
                             if (spellToCast != null)
-                            {   
+                            {
                                 AbilityData spellModified = new AbilityData(spellToCast.Blueprint, spellToCast.Caster);
                                 AbilityEffectStickyTouch component2 = spellModified.Blueprint.GetComponent<AbilityEffectStickyTouch>();
                                 if ((bool)component2)
@@ -720,7 +720,7 @@ namespace KingmakerBuffBot
                                     else
                                     {
                                         spellToCast.SpendFromSpellbook();
-                                       // Helpers.Log("Line 710");
+                                        // Helpers.Log("Line 710");
                                     }
 
                                 }
@@ -1002,7 +1002,7 @@ namespace KingmakerBuffBot
                     foreach (var a in uR.Abilities)
                     {
                         // abilitiesBySpellProfile.Add(a.Data);
-                        
+
                         AbilityVariants component = a.Data.Blueprint.GetComponent<AbilityVariants>();
 
                         if (component?.Variants != null)
@@ -1017,7 +1017,7 @@ namespace KingmakerBuffBot
                         {
                             abilitiesBySpellProfile.Add(a.Data);
                         }
-                       
+
                     }
                 }
             }
@@ -1025,7 +1025,7 @@ namespace KingmakerBuffBot
         }
 
 
-       public static void AttachProfilesManager()
+        public static void AttachProfilesManager()
         {
             FindPartyAssignment();
             AttachProfiles();
@@ -1367,7 +1367,7 @@ namespace KingmakerBuffBot
                 if (settings.readyForProfileSpells.FirstOrDefault(o => o.Name == aks.Name) == null)
                 {
 
-                   
+
                     if (aks.Blueprint.HasVariants)
                     {
                         foreach (var variant in aks.Blueprint.Variants)
@@ -1553,7 +1553,7 @@ namespace KingmakerBuffBot
                                             }
                                         }
                                     }
-                                   
+
                                 }
                             }
                             else
@@ -1577,8 +1577,8 @@ namespace KingmakerBuffBot
                                     else
                                     {
                                         AbilityVariants component = s.Spell.Blueprint.GetComponent<AbilityVariants>();
-                                        
-                                        
+
+
                                         if (component?.Variants != null)
                                         {
                                             foreach (var variant in component.Variants)
@@ -1589,8 +1589,8 @@ namespace KingmakerBuffBot
                                                 }
                                             }
                                         }
-                                        
-                                      
+
+
                                     }
                                 }
                                 else
@@ -1621,8 +1621,8 @@ namespace KingmakerBuffBot
                             else
                             {
                                 AbilityVariants component = ability.Blueprint.GetComponent<AbilityVariants>();
-                                
-                                
+
+
                                 if (component?.Variants != null)
                                 {
                                     foreach (var variant in component.Variants)
@@ -1633,7 +1633,7 @@ namespace KingmakerBuffBot
                                         }
                                     }
                                 }
-                              
+
                             }
                         }
                         else
@@ -1653,7 +1653,7 @@ namespace KingmakerBuffBot
                     if (aks.Blueprint.HasVariants)
                     {
                         AbilityVariants component = aks.Blueprint.GetComponent<AbilityVariants>();
-                       
+
                         if (component?.Variants != null)
                         {
                             foreach (var variant in component.Variants)
@@ -1667,7 +1667,7 @@ namespace KingmakerBuffBot
                             }
                         }
 
-                       
+
                     }
                     else
                     {
