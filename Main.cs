@@ -1,25 +1,30 @@
-﻿using HarmonyLib;
+﻿using Harmony12;
 using Kingmaker;
+using Kingmaker.Blueprints.Classes;
+using Kingmaker.Blueprints.Classes.Spells;
+using Kingmaker.Blueprints.Root;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.GameModes;
 using Kingmaker.UnitLogic;
 using Kingmaker.UnitLogic.Abilities;
+using Kingmaker.UnitLogic.Abilities.Blueprints;
 using Kingmaker.UnitLogic.Abilities.Components;
+using Kingmaker.UnitLogic.Commands;
+using Kingmaker.UnitLogic.Parts;
 using Kingmaker.Utility;
+using Kingmaker.View;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using UnityEngine;
 using UnityModManagerNet;
 using Kingmaker.Blueprints;
-using Kingmaker.UnitLogic.Abilities.Blueprints;
-using System.IO;
-using Kingmaker.UnitLogic.Mechanics.Actions;
-using Kingmaker.UnitLogic.Buffs.Blueprints;
-using Kingmaker.Designers.EventConditionActionSystem.Actions;
-using Kingmaker.UnitLogic.Mechanics;
-using Kingmaker.ElementsSystem;
+
 
 namespace WrathBuffBot
 {
@@ -152,7 +157,7 @@ namespace WrathBuffBot
 
         static bool Load(UnityModManager.ModEntry modEntry)
         {
-            var harmony = new Harmony(modEntry.Info.Id);
+            var harmony = HarmonyInstance.Create(modEntry.Info.Id);
             harmony.PatchAll(Assembly.GetExecutingAssembly());
 #if DEBUG
             modEntry.OnUnload = Unload;
@@ -939,61 +944,38 @@ namespace WrathBuffBot
 
         private static void GetCastableSpellsBySpellProfiles()
         {
-            HashSet<AbilityData> abilitiesBySpellProfile = new HashSet<AbilityData>();
+            List<AbilityData> abilitiesBySpellProfile = new List<AbilityData>();
             foreach (var ua in unitAssignments)
             {
                 UnitDescriptor uR = ua.Unit.Descriptor;
-
-                var unitAssignments = Main.unitAssignments;
-                var slotAssignments = settings.slotAssignments;
-
-                var slotAssignment = new SlotAssignment();
-                var unitAssignment = new UnitAssignment();
-                unitAssignment = unitAssignments.Where(f => f.Unit == uR.Unit).FirstOrDefault();
-                slotAssignment = slotAssignments.Where(q => q.SlotIndex == unitAssignment.SlotIndex).FirstOrDefault();
-                if (slotAssignment.CanCast)
+                foreach (var spellbook in uR.Spellbooks)
                 {
-                    foreach (var spellbook in uR.Spellbooks)
+                    foreach (var sp in spellbook.GetAllKnownSpells().Where(o => o.GetAvailableForCastCount() > 0).ToList())
                     {
-                        foreach (var sp in spellbook.GetAllKnownSpells().Where(o => o.GetAvailableForCastCount() > 0))
+                        if (sp.Blueprint.HasVariants)
                         {
-                            AbilityVariants component = sp.Blueprint.GetComponent<AbilityVariants>();
-                            ReferenceArrayProxy<BlueprintAbility, BlueprintAbilityReference>? referenceArrayProxy = (component != null) ? new ReferenceArrayProxy<BlueprintAbility, BlueprintAbilityReference>?(component.Variants) : null;
-                            if (referenceArrayProxy != null)
+                            foreach (var variant in sp.Blueprint.Variants)
                             {
-                                foreach (var variant in referenceArrayProxy)
+                                var variantAbility = new AbilityData(variant, uR, spellbook.Blueprint);
+                                foreach (var sa in slotAssignmentWithSpellProfiles.Where(o => (o.SpellProfile.Spells.FirstOrDefault(p => p.Name == variant.Name)) != null).ToList())
                                 {
-                                    //Helpers.Log("Varient : " + variant.name);
-                                    var variantAbility = new AbilityData(variant, sp.Spellbook, sp.SpellLevel);
                                     abilitiesBySpellProfile.Add(variantAbility);
                                 }
                             }
-                            else
+                        }
+                        else
+                        {
+                            foreach (var sa in slotAssignmentWithSpellProfiles.Where(o => (o.SpellProfile.Spells.FirstOrDefault(p => p.Name == sp.Name)) != null).ToList())
                             {
                                 abilitiesBySpellProfile.Add(sp);
                             }
                         }
-                        foreach (var sp in spellbook.GetAllMemorizedSpells().Where(o => o.Spell.GetAvailableForCastCount() > 0))
+                    }
+                    for (int i = 0; i < 10; i++)
+                    {
+                        foreach (var sp in spellbook.GetCustomSpells(i).Where(o => o.GetAvailableForCastCount() > 0).ToList())
                         {
-                            AbilityVariants component = sp.Spell.Blueprint.GetComponent<AbilityVariants>();
-                            ReferenceArrayProxy<BlueprintAbility, BlueprintAbilityReference>? referenceArrayProxy = (component != null) ? new ReferenceArrayProxy<BlueprintAbility, BlueprintAbilityReference>?(component.Variants) : null;
-                            if (referenceArrayProxy != null)
-                            {
-                                foreach (var variant in referenceArrayProxy)
-                                {
-                                    //Helpers.Log("Varient2 : " + variant.name);
-                                    var variantAbility = new AbilityData(variant, sp.Spell.Spellbook, sp.SpellLevel);
-                                    abilitiesBySpellProfile.Add(variantAbility);
-                                }
-                            }
-                            else
-                            {
-                                abilitiesBySpellProfile.Add(sp.Spell);
-                            }
-                        }
-                        for (int i = 0; i <= maxSpellLevel; i++)
-                        {
-                            foreach (var sp in spellbook.GetCustomSpells(i).Where(o => o.GetAvailableForCastCount() > 0))
+                            foreach (var sa in slotAssignmentWithSpellProfiles.Where(o => (o.SpellProfile.Spells.FirstOrDefault(p => p.Name == sp.Name)) != null).ToList())
                             {
                                 abilitiesBySpellProfile.Add(sp);
                             }
@@ -1055,7 +1037,7 @@ namespace WrathBuffBot
         {
             int i = 1;
             List<UnitAssignment> unitAssignmentsTemp = new List<UnitAssignment>();
-            foreach (var u in Game.Instance.Player.PartyCharacters)
+            foreach (var u in Game.Instance.Player.PartyCharacters.ToList())
             {
                 UnitDescriptor uD = u.Value.Descriptor;
                 UnitAssignment uA = new UnitAssignment
@@ -1065,14 +1047,14 @@ namespace WrathBuffBot
                 };
                 unitAssignmentsTemp.Add(uA);
                 i++;
-                if (uD.Unit.Pets.Count > 0)
+                if (uD.Pet != null)
                 {
-                    foreach (var uP in uD.Unit.Pets)
+                    if (uD.Pet.IsInState)
                     {
                         UnitAssignment uAPet = new UnitAssignment
                         {
                             SlotIndex = i,
-                            Unit = uP
+                            Unit = uD.Pet
                         };
                         unitAssignmentsTemp.Add(uAPet);
                         i++;
@@ -1386,11 +1368,11 @@ namespace WrathBuffBot
             {
                 if (settings.readyForProfileSpells.FirstOrDefault(o => o.Name == aks.Name) == null)
                 {
-                    AbilityVariants component = aks.Blueprint.GetComponent<AbilityVariants>();
-                    ReferenceArrayProxy<BlueprintAbility, BlueprintAbilityReference>? referenceArrayProxy = (component != null) ? new ReferenceArrayProxy<BlueprintAbility, BlueprintAbilityReference>?(component.Variants) : null;
-                    if (referenceArrayProxy != null)
+
+                   
+                    if (aks.Blueprint.HasVariants)
                     {
-                        foreach (var variant in referenceArrayProxy)
+                        foreach (var variant in aks.Blueprint.Variants)
                         {
                             if (settings.readyForProfileSpells.FirstOrDefault(o => o.Name == variant.Name) == null)
                             {
