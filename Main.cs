@@ -20,13 +20,9 @@ using Kingmaker.UnitLogic.Mechanics.Actions;
 using Kingmaker.ElementsSystem;
 using Kingmaker.UnitLogic.Mechanics;
 using Kingmaker.Designers.EventConditionActionSystem.Actions;
-using System.Collections;
-using JetBrains.Annotations;
-using Kingmaker.Blueprints.DirectSerialization;
-using Kingmaker.Blueprints.Validation;
-using System.Runtime.Serialization;
 
-namespace WrathBuffBot
+
+namespace KingmakerBuffBot
 {
 #if DEBUG
     [EnableReloading]

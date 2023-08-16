@@ -7,8 +7,8 @@
     <ProjectGuid>{6097C8E5-1283-48D7-BA1C-52AB79AB598C}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>WrathBuffBot</RootNamespace>
-    <AssemblyName>WrathBuffBot</AssemblyName>
+    <RootNamespace>KingmakerBuffBot</RootNamespace>
+    <AssemblyName>KingmakerBuffBot</AssemblyName>
     <TargetFrameworkVersion>v4.6.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>
@@ -39,9 +39,6 @@
     </Reference>
     <Reference Include="Assembly-CSharp-firstpass">
       <HintPath>E:\SteamLibrary\steamapps\common\Pathfinder Kingmaker\Kingmaker_Data\Managed\Assembly-CSharp-firstpass.dll</HintPath>
-    </Reference>
-    <Reference Include="KingmakerBuffBot">
-      <HintPath>E:\SteamLibrary\steamapps\common\Pathfinder Kingmaker\Mods\KingmakerBuffBot\old\KingmakerBuffBot.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -83,7 +80,7 @@
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
-    <PostBuildEvent>start XCOPY /Y /R "$(TargetPath)" "C:\Program Files (x86)\Steam\steamapps\common\Pathfinder Second Adventure\Mods\WrathBuffBot\WrathBuffBot.dll"</PostBuildEvent>
+    <PostBuildEvent>start XCOPY /Y /R "$(TargetPath)" "E:\SteamLibrary\steamapps\common\Pathfinder Kingmaker\Mods\KingmakerBuffBot\KingmakerBuffBot.dll"</PostBuildEvent>
   </PropertyGroup>
   <PropertyGroup>
     <PreBuildEvent>

@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using UnityEngine;
 using UnityModManagerNet;
 
-namespace WrathBuffBot
+namespace KingmakerBuffBot
 {
     class Helpers
     {
